@@ -105,6 +105,7 @@ int main()
 	
 
 	bool attenuation=true;
+	sf::Vector2i vel=sf::Vector2i(0,0);
     // Start game loop 
     while (App.isOpen()) 
     { 
@@ -170,6 +171,9 @@ int main()
 					attenuation=true;
 				}
 
+				if (Event.key.code == sf::Keyboard::M){ 
+					=;
+				}
 				
 			}
 			
@@ -183,13 +187,21 @@ int main()
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))			listenerSprite.move(0, -100 * ElapsedTime);
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))		listenerSprite.move(0,  100 * ElapsedTime);
    
-		
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))		listenerSprite.move(0,  100 * ElapsedTime);
+
 		if(attenuation){
 		
 		}
+
+		if(moving){
 		
+		}
+		
+
 		FMOD_VECTOR  listenerpos  = { listenerSprite.getPosition().x, 0.0f, listenerSprite.getPosition().y };
-		FMODsys->set3DListenerAttributes(0, &listenerpos, 0, 0, 0);
+		FMOD_VECTOR  listenervel  = { 100, 0.0f, 0 };
+
+		FMODsys->set3DListenerAttributes(0, &listenerpos, &listenervel, 0, 0);
 		
 		if(channel){
 			FMOD_VECTOR  sourcePos  = { sourceSprite.getPosition().x, 0.0f, sourceSprite.getPosition().y };
