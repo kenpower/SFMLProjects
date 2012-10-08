@@ -32,13 +32,14 @@ public:
 	}
 
 	static float length(sf::Vector2f a){
+		return sqrt(a.x*a.x+a.y*a.y);
 	}
 
 	static sf::Vector2f GetNormal(sf::Vector2f a,sf::Vector2f b){
 		sf::Vector2f n;
 		n=a-b;
-		float l=sqrt(n.x*n.x+n.y*n.y);
-		n/=l;//normalise
+		
+		n/=Vector::length(n);//normalise
 		float x=n.x;
 		n.x=n.y;
 		n.y=-x;
@@ -74,12 +75,14 @@ class Triangle{
 
 	}
 
-	void SetPos(sf::Vector2f p){pos=p;}
-	void SetVel(sf::Vector2f v){vel=v;}
-	sf::Vector2f  GetVel(){return vel;}
-	void SetAngVel(float aVel){angVel=aVel;}
-	void SetSize(float s){size=s; initVerts();}
-	void SetColour(sf::Vector3f c){col=c;}
+	void setPos(sf::Vector2f p){pos=p;}
+	sf::Vector2f getPos(){return pos;}
+	void setVel(sf::Vector2f v){vel=v;}
+	
+	sf::Vector2f  getVel(){return vel;}
+	void setAngVel(float aVel){angVel=aVel;}
+	void setSize(float s){size=s; initVerts();}
+	void setColour(sf::Vector3f c){col=c;}
 
 
 
@@ -174,6 +177,23 @@ public:
 
 	}
 
+	static void Bounce(Triangle& t1,Triangle& t2){
+		sf::Vector2f displacement=t1.getPos()-t2.getPos();
+		sf::Vector2f closing=t1.getVel()-t2.getVel();
+
+		if(Vector::dot(displacement,closing)>=0) return;
+
+		
+		displacement/=Vector::length(displacement); //normalise
+
+		sf::Vector2f b;
+		b=Vector::dot(t1.getVel(),displacement)*displacement;
+		t1.setVel(t1.getVel()-b*2.f);
+		//b=Vector::dot(t2.getVel(),displacement)*displacement;
+		//t2.setVel(t2.getVel()-b*2.f);
+
+	}
+
 	bool static Separated(sf::Vector2f normal,sf::Vector2f verts1[],sf::Vector2f verts2[]){
 		float min1=FLT_MAX;
 		float min2=FLT_MAX;
@@ -232,11 +252,11 @@ int main()
 	Triangle tri[NUM_TRIS];
 	const int MAX_VEL=10;
 	for(int i=0;i<NUM_TRIS;i++){
-		tri[i].SetPos(sf::Vector2f(rand()%400+200,rand()%300+150));
-		tri[i].SetVel(sf::Vector2f(rand()%MAX_VEL-MAX_VEL/2,rand()%MAX_VEL-MAX_VEL/2));
-		tri[i].SetAngVel(rand()%20-10);
-		tri[i].SetSize(rand()%20+5);
-		tri[i].SetColour(sf::Vector3f( (double)rand()/ RAND_MAX, (double)rand() / RAND_MAX, (double)rand() / RAND_MAX ));
+		tri[i].setPos(sf::Vector2f(rand()%400+200,rand()%300+150));
+		tri[i].setVel(sf::Vector2f(rand()%MAX_VEL-MAX_VEL/2,rand()%MAX_VEL-MAX_VEL/2));
+		tri[i].setAngVel(rand()%20-10);
+		tri[i].setSize(rand()%20+5);
+		tri[i].setColour(sf::Vector3f( (double)rand()/ RAND_MAX, (double)rand() / RAND_MAX, (double)rand() / RAND_MAX ));
 	}
 
 
@@ -279,10 +299,7 @@ int main()
 			for(int j=0;j<NUM_TRIS;j++){
 				bool collide=Collider::CheckForCollisionSAT(tri[i],tri[j]);
 				if(collide){
-					
-					sf::Vector2f v= tri[j].GetVel();
-					tri[j].SetVel(tri[i].GetVel());
-					tri[i].SetVel(v);
+					Collider::Bounce(tri[i],tri[j]);
 				}
 			}
 	   }
