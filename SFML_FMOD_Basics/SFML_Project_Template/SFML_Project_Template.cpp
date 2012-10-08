@@ -2,6 +2,12 @@
 // Headers 
 //////////////////////////////////////////////////////////// 
 #include "stdafx.h" 
+
+//FMOD includes
+#pragma comment(lib,"fmodex_vc.lib") 
+#include "fmod.hpp"
+
+//sfml & openGL Includes
 #ifdef _DEBUG 
 #pragma comment(lib,"sfml-graphics-d.lib") 
 #pragma comment(lib,"sfml-audio-d.lib") 
@@ -18,13 +24,14 @@
 #pragma comment(lib,"opengl32.lib") 
 #pragma comment(lib,"glu32.lib") 
 
-
-#pragma comment(lib,"fmodex_vc.lib") 
-#include "fmod.hpp"
-
 #include "SFML/Graphics.hpp" 
 #include "SFML/OpenGL.hpp" 
+#include "SFML/System/String.hpp" 
+
+
+//standard c++ includes
 #include <iostream> 
+#include <string>
   
   
   
@@ -59,12 +66,13 @@ int main()
 	
 	// create and load a "sound",
 	FMOD::Sound *sound;
-	result = FMODsys->createSound("C:/Program Files (x86)/FMOD SoundSystem/FMOD Programmers API Windows/examples/media/wave.mp3", FMOD_LOOP_NORMAL|FMOD_3D, 0, &sound);		// FMOD_DEFAULT uses the defaults.  These are the same as FMOD_LOOP_OFF | FMOD_2D | FMOD_HARDWARE.
+	result = FMODsys->createSound("../Sleep Away.mp3", FMOD_LOOP_NORMAL|FMOD_3D, 0, &sound);		
+	// FMOD_DEFAULT uses the defaults.  These are the same as FMOD_LOOP_OFF | FMOD_2D | FMOD_HARDWARE.
 	
 	FMOD::Channel *channel=0;
-	float volume=0.5f;
+	float volume=0.9f;
 
-	FMOD::Reverb	 *reverb;
+	
 
    //load & create sprites
 	sf::Image personImage;
@@ -76,8 +84,9 @@ int main()
 	texture.loadFromImage(personImage);
 	sf::Sprite listenerSprite;
 	listenerSprite.setTexture(texture);
-	listenerSprite.setPosition(100,100);
+	listenerSprite.setPosition(100,300);
 	listenerSprite.setOrigin(53,23); //set origin at her head
+	sf::Vector2i velocity(0,0);
 
 	sf::Image speakerImage;
 	if (!speakerImage.loadFromFile("../speaker.png"))
@@ -88,7 +97,7 @@ int main()
 	stexture.loadFromImage(speakerImage);
 	sf::Sprite sourceSprite;
 	sourceSprite.setTexture(stexture);
-	sourceSprite.setPosition(200,200);
+	sourceSprite.setPosition(200,500);
 	sourceSprite.setOrigin(stexture.getSize().x/2,stexture.getSize().y/2); //set origin at center
 	
 	sf::Image seaImage;
@@ -100,12 +109,53 @@ int main()
 	seatexture.loadFromImage(seaImage);
 	sf::Sprite seaSprite;
 	seaSprite.setTexture(seatexture);
-	seaSprite.setPosition(400,200);
+	seaSprite.setPosition(350,500);
 	seaSprite.setOrigin(seatexture.getSize().x/2,seatexture.getSize().y/2); //set origin at center
 	
 
-	bool attenuation=true;
-	sf::Vector2i vel=sf::Vector2i(0,0);
+	//load a font for later
+
+	// Declare a new font
+	sf::Font font;
+ 
+	 // Load it from a file
+	 if (!font.loadFromFile("../sansation.ttf"))
+	 {
+		 std::cout << "Error loading font\n" ;
+	 }
+
+
+	bool soundOn=false;
+	bool doppler=false;
+	bool reverbOn=false;
+	bool spatialSound=false;
+
+
+	//set up the reverb
+	FMOD_REVERB_PROPERTIES prop1 = FMOD_PRESET_OFF;
+	FMODsys->setReverbAmbientProperties(&prop1);
+	//FMOD_REVERB_PROPERTIES prop2 = {  0,  22, 1.00f, 
+	//									-0,  0,  0,  //room 
+	//										1.49f,  0.10f, 1.0f, //decay  
+	//										-449, 0.15f,//reflections  
+	//										-5700, 0.011f, //reverb
+	//										1.18f, 0.348f, //modulation
+	//										5000.0f, 250.0f, //reference
+	//										100.0f, 100.0f, //diffusion & density
+	//										0x3f };
+
+	FMOD::Reverb *reverb;
+	result = FMODsys->createReverb(&reverb);
+	FMOD_REVERB_PROPERTIES prop2 = FMOD_PRESET_UNDERWATER  ;
+	reverb->setProperties(&prop2);
+				
+	FMOD_VECTOR pos = {seaSprite.getPosition().x, 0.0f,seaSprite.getPosition().y };
+	float mindist = 100.0f; 
+	float maxdist = 150.0f;
+	reverb->set3DAttributes(&pos, mindist, maxdist);
+
+	
+
     // Start game loop 
     while (App.isOpen()) 
     { 
@@ -127,15 +177,23 @@ int main()
             
 				//play sound
 				if (Event.key.code == sf::Keyboard::S){ 
-				   FMODsys->playSound(FMOD_CHANNEL_FREE, sound, false, &channel);
-				   result = channel->setVolume(volume);	
-				    channel->set3DMinMaxDistance(10,10000);
-
+					if(!channel){
+						FMODsys->playSound(FMOD_CHANNEL_FREE, sound, false, &channel);
+						result = channel->setVolume(volume);	
+						//need this for sound fall off
+						channel->set3DMinMaxDistance(50,10000);
+						
+					}
+					
+					
+					
+					soundOn=!soundOn;
+					channel->setPaused(!soundOn);
 				}
 
 				//increase/decrease  volumne
 				if (Event.key.code == sf::Keyboard::Equal){ 
-				   volume+=0.1f;
+					volume+=0.1f;
 					result = channel->setVolume(volume);	
 				}
 
@@ -146,69 +204,63 @@ int main()
 
 				//set-up reverb
 				if ((Event.key.code == sf::Keyboard::R)){ 
-					FMOD_REVERB_PROPERTIES prop1 = FMOD_PRESET_OFF;
-					FMODsys->setReverbAmbientProperties(&prop1);
-				
-					result = FMODsys->createReverb(&reverb);
-					FMOD_REVERB_PROPERTIES prop2 = FMOD_PRESET_UNDERWATER;
-					reverb->setProperties(&prop2);
-				
-					FMOD_VECTOR pos = {seaSprite.getPosition().x, 0.0f,seaSprite.getPosition().y };
-					float mindist = 100.0f; 
-					float maxdist = 150.0f;
-					reverb->set3DAttributes(&pos, mindist, maxdist);
-
-
-					//As the 3D reverb uses the position of the listener in its weighting calculation, we also need to ensure that the location of the listener is set using System::set3dListenerAtrributes. 
-
-					
-
-
+					reverbOn=!reverbOn;
 				}
 
 
 				if (Event.key.code == sf::Keyboard::A){ 
-					attenuation=true;
+					spatialSound=!spatialSound;
 				}
 
-				if (Event.key.code == sf::Keyboard::M){ 
-					=;
+				if (Event.key.code == sf::Keyboard::D){ 
+					doppler=!doppler;
 				}
 				
 			}
 			
         } 
 
-		// Move the sprite
+		// Move the listener sprite
 		float ElapsedTime = Clock.getElapsedTime().asMicroseconds()/1000000.0;
 		Clock.restart();
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))		listenerSprite.move(-100 * ElapsedTime, 0);
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))		listenerSprite.move( 100 * ElapsedTime, 0);
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))			listenerSprite.move(0, -100 * ElapsedTime);
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))		listenerSprite.move(0,  100 * ElapsedTime);
+		velocity=sf::Vector2i(0,0);
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))			velocity.x=-50;
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))		velocity.x=50;
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))			velocity.y=-50;
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))			velocity.y=+50;
    
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))		listenerSprite.move(0,  100 * ElapsedTime);
+		listenerSprite.move(velocity.x* ElapsedTime, velocity.y*ElapsedTime);
 
-		if(attenuation){
+
+
+		FMOD_VECTOR  listenervel  = { 0, 0.0f, 0 };
+		if(doppler){
+			listenervel.x=velocity.x;
+			listenervel.z=velocity.y;
+
+		}
 		
+		if(spatialSound){
+			//update position & velocity of listener
+			//position of listener needed for spatial & reverb effects
+			//velocity of listener needed for dopper effects
+			FMOD_VECTOR  listenerpos  = { listenerSprite.getPosition().x, 0.0f, listenerSprite.getPosition().y };
+			FMODsys->set3DListenerAttributes(0, &listenerpos, &listenervel, 0, 0);
+		
+			//update position of sound
+			if(channel){
+				FMOD_VECTOR  sourcePos  = { sourceSprite.getPosition().x, 0.0f, sourceSprite.getPosition().y };
+				channel->set3DAttributes(&sourcePos,0);
+				
+			}
 		}
 
-		if(moving){
-		
+		else{
+			FMOD_VECTOR zero={0,0,0};
+			channel->set3DAttributes(&zero,0);
+			FMODsys->set3DListenerAttributes(0, &zero,&zero, 0, 0);
 		}
-		
-
-		FMOD_VECTOR  listenerpos  = { listenerSprite.getPosition().x, 0.0f, listenerSprite.getPosition().y };
-		FMOD_VECTOR  listenervel  = { 100, 0.0f, 0 };
-
-		FMODsys->set3DListenerAttributes(0, &listenerpos, &listenervel, 0, 0);
-		
-		if(channel){
-			FMOD_VECTOR  sourcePos  = { sourceSprite.getPosition().x, 0.0f, sourceSprite.getPosition().y };
-			channel->set3DAttributes(&sourcePos,0);
-		}
-
-
+		reverb->setActive(reverbOn);
 
 		App.clear();
 		
@@ -216,6 +268,45 @@ int main()
 		App.draw(sourceSprite);
 		App.draw(listenerSprite);
         
+		sf::Text atext;
+		atext.setFont(font);
+		atext.setCharacterSize(20);
+		atext.setStyle(sf::Text::Bold);
+		atext.setColor(sf::Color::Red);
+		int textPos=0;
+		
+		sf::String on="[on]";
+		sf::String off="[off]";
+
+		atext.setString(sf::String("press 'S' to enable Sound ")+=soundOn?on:off);
+		App.draw(atext);
+		
+
+		atext.setString(sf::String("press 'D' to enable Doppler ")+=doppler?on:off);
+		atext.setPosition(0,textPos+=22);
+		App.draw(atext);
+
+		
+
+		atext.setString(sf::String("press 'R' to enable Reverb ")+=reverbOn?on:off);
+		atext.setPosition(0,textPos+=22);
+		App.draw(atext);
+
+
+
+		atext.setString(sf::String("press 'A' to enable spatial sounds ")+=spatialSound?on:off);
+		atext.setPosition(0,textPos+=22);
+		App.draw(atext);
+
+
+
+
+		 // Draw it
+		
+		
+
+
+
 		//update FMD
 		FMODsys->update();
 
