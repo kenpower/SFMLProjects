@@ -88,7 +88,7 @@ class Triangle{
 
 
 	void Draw(){
-		glBegin(GL_TRIANGLES);
+		glBegin(GL_POINTS);
 		glColor3f(col.x,col.y,col.z);
 		for(int i=0;i<3;i++)
 			glVertex2f(pos.x+verts[i].x,pos.y+verts[i].y);
@@ -174,10 +174,17 @@ public:
 			if (sep) return false;//no collision
 		}
 
-		if(Vector::length(t1.getPos()-t2.getPos())>t1.getSize()+t2.getSize()){
-			float f=Vector::length(displacement);
+		//debug code
+		//if(Vector::length(t1.getPos()-t2.getPos())>t1.getSize()+t2.getSize()){
+		//	for(int i=0;i<3;i++){
+		//	bool sep;
+		//	sep=Separated(normals1[i],verts1,verts2);
+		//	if (sep) return false;//no collision
+		//	sep=Separated(normals2[i],verts1,verts2);
+		//	if (sep) return false;//no collision
+		//}
 
-		}
+		//}
 
 		return true;
 
@@ -206,8 +213,8 @@ public:
 	bool static Separated(sf::Vector2f normal,sf::Vector2f verts1[],sf::Vector2f verts2[]){
 		float min1=FLT_MAX;
 		float min2=FLT_MAX;
-		float max1=FLT_MIN;
-		float max2=FLT_MIN;
+		float max1=-FLT_MAX;
+		float max2=-FLT_MAX;
 		for(int i=0;i<3;i++){//project t2 on to 1's normals
 				float d=Vector::dot(normal,verts2[i]);
 				if(d>max2) max2=d;
@@ -224,8 +231,8 @@ public:
 			return true;
 
 
-		if(max1<min2)
-			return true;
+		//if(max1<min2)
+		//	return true;
 		return false;
 	}
 };
@@ -261,7 +268,7 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
 
-	const int NUM_TRIS=10;
+	const int NUM_TRIS=500;
 	Triangle tri[NUM_TRIS];
 	const int MAX_VEL=10;
 	for(int i=0;i<NUM_TRIS;i++){
@@ -310,6 +317,8 @@ int main()
 			Collider::CheckPointsOutsideWindow(tri[i],0,800,0,600);
 
 			for(int j=i;j<NUM_TRIS;j++){
+				if(Vector::length(tri[i].getPos()-tri[j].getPos())>tri[i].getSize()+tri[j].getSize())
+					continue;
 				bool collide=Collider::CheckForCollisionSAT(tri[i],tri[j]);
 				if(collide){
 					Collider::Bounce(tri[i],tri[j]);
