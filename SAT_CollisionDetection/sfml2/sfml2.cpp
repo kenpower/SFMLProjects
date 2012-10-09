@@ -28,14 +28,14 @@ enum Edges{leftEdge,rightEdge,topEdge, bottomEdge};
 class Vector{
 public:
 	static float dot(sf::Vector2f a,sf::Vector2f b){
-		return a.x*b.x+a.y+b.y;
+		return a.x*b.x+a.y*b.y;
 	}
 
 	static float length(sf::Vector2f a){
 		return sqrt(a.x*a.x+a.y*a.y);
 	}
 
-	static sf::Vector2f GetNormal(sf::Vector2f a,sf::Vector2f b){
+	static sf::Vector2f getNormal(sf::Vector2f a,sf::Vector2f b){
 		sf::Vector2f n;
 		n=a-b;
 		
@@ -82,6 +82,7 @@ class Triangle{
 	sf::Vector2f  getVel(){return vel;}
 	void setAngVel(float aVel){angVel=aVel;}
 	void setSize(float s){size=s; initVerts();}
+	float getSize(){return size;}
 	void setColour(sf::Vector3f c){col=c;}
 
 
@@ -131,7 +132,7 @@ class Triangle{
 	void GetNormals(sf::Vector2f* v){
 		
 		for(int i=0;i<3;i++)
-			v[i]=Vector::GetNormal(verts[i],verts[(i+1)%3]);
+			v[i]=Vector::getNormal(verts[i],verts[(i+1)%3]);
 		
 	}
 
@@ -173,6 +174,11 @@ public:
 			if (sep) return false;//no collision
 		}
 
+		if(Vector::length(t1.getPos()-t2.getPos())>t1.getSize()+t2.getSize()){
+			float f=Vector::length(displacement);
+
+		}
+
 		return true;
 
 	}
@@ -181,6 +187,8 @@ public:
 		sf::Vector2f displacement=t1.getPos()-t2.getPos();
 		sf::Vector2f closing=t1.getVel()-t2.getVel();
 
+		
+		
 		if(Vector::dot(displacement,closing)>=0) return;
 
 		
@@ -188,9 +196,10 @@ public:
 
 		sf::Vector2f b;
 		b=Vector::dot(t1.getVel(),displacement)*displacement;
-		t1.setVel(t1.getVel()-b*2.f);
-		//b=Vector::dot(t2.getVel(),displacement)*displacement;
-		//t2.setVel(t2.getVel()-b*2.f);
+		b=t1.getVel()-b*2.f;
+		t1.setVel(b);
+		b=Vector::dot(t2.getVel(),displacement)*displacement;
+		t2.setVel(t2.getVel()-b*2.f);
 
 	}
 
@@ -212,6 +221,10 @@ public:
 		
 
 		if(max1<min2 || max2 <min1)
+			return true;
+
+
+		if(max1<min2)
 			return true;
 		return false;
 	}
@@ -248,7 +261,7 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
 
-	const int NUM_TRIS=100;
+	const int NUM_TRIS=10;
 	Triangle tri[NUM_TRIS];
 	const int MAX_VEL=10;
 	for(int i=0;i<NUM_TRIS;i++){
@@ -296,7 +309,7 @@ int main()
 
 			Collider::CheckPointsOutsideWindow(tri[i],0,800,0,600);
 
-			for(int j=0;j<NUM_TRIS;j++){
+			for(int j=i;j<NUM_TRIS;j++){
 				bool collide=Collider::CheckForCollisionSAT(tri[i],tri[j]);
 				if(collide){
 					Collider::Bounce(tri[i],tri[j]);
