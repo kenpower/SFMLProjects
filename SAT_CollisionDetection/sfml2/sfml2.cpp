@@ -29,7 +29,9 @@ enum Edges{leftEdge,rightEdge,topEdge, bottomEdge};
 
 class Vector{
 public:
+	static int dp_count;
 	static float dot(sf::Vector2f a,sf::Vector2f b){
+		dp_count++;
 		return a.x*b.x+a.y*b.y;
 	}
 
@@ -49,8 +51,10 @@ public:
 		n.y=-x;
 		return n;
 	}
+
 };
 
+int Vector::dp_count;
 class Triangle{
 	sf::Vector2f verts[3];
 	sf::Vector2f vel;
@@ -144,6 +148,69 @@ class Triangle{
 	
 };
 
+class QuadNode{
+	QuadNode* nodes;
+	std::vector<Triangle*>* tris;
+	
+public:
+	QuadNode():tris(0){}
+
+	~QuadNode(){
+		delete tris;
+		delete[] nodes;
+	}
+
+	void AddToNodes(std::vector<Triangle*>& t, sf::IntRect rect, int level){
+			if(level==0){
+				tris=new std::vector<Triangle*>(t);
+				return;
+			}
+			std::vector<Triangle*> a,b,c,d;
+			std::vector<Triangle*>::iterator triIt;
+			int midx=rect.left+rect.width/2;
+			int midy=rect.top+rect.height/2;
+			//+-----+-----+
+			//|  a  |  b  |
+			//+-----+-----+
+			//|  c  |  d  |
+			//+-----+-----+
+
+			
+			for(triIt=t.begin();triIt!=t.end();triIt++){
+				int x=(*triIt)->getPos().x;
+				int y=(*triIt)->getPos().y;
+			
+				if(x<midx){
+					if(y<midy) a.push_back(*triIt);
+				
+					else c.push_back(*triIt);
+				}
+				else{
+					if(y<midy) b.push_back(*triIt);
+				
+					else d.push_back(*triIt);
+				}
+			}
+			nodes=new QuadNode[4];
+			level--;
+			int w2=rect.width/2;
+			int h2=rect.height/2;
+			sf::IntRect ra(rect.left,rect.top,w2,h2);
+			sf::IntRect rb(rect.left+w2,rect.top,w2,h2);
+			sf::IntRect rc(rect.left,rect.top+h2,w2,h2);
+			sf::IntRect rd(rect.left+w2,rect.top+h2,w2,h2);
+
+			nodes[0].AddToNodes(a,ra,level);
+			nodes[1].AddToNodes(a,rb,level);
+			nodes[2].AddToNodes(a,rc,level);
+			nodes[3].AddToNodes(a,rd,level);
+			
+	}
+};
+
+
+
+
 class Collider{
 public:
 	static void CheckPointsOutsideWindow(Triangle* tri,int left,int right, int bottom, int top){
@@ -224,18 +291,28 @@ public:
 
 		return false;
 	}
-	static void CollideAllInVector(std::vector<Triangle*>& tris, bool circleCollision){
+	static void CollideAllInVector(std::vector<Triangle*>& tris, bool SATCollision, bool circleBroadPhaseTest){
 			std::vector<Triangle*>::iterator outerIt;	
 			std::vector<Triangle*>::iterator innerIt;	
 			for(outerIt=tris.begin();outerIt!=tris.end();outerIt++){ 
 				for(innerIt=outerIt+1;innerIt!=tris.end();innerIt++){
-					//circle Collision
-					if(circleCollision){
-						if(Vector::length((*outerIt)->getPos()-(*innerIt)->getPos())>(*outerIt)->getSize()+(*innerIt)->getSize())
-							continue;
+					bool collsion =true;
+					
+					
+					
+					//we need to check for circle collision if the are not doing the SAT or we are doing the SAT with Circle-broad-phase
+					if((!SATCollision) || (SATCollision && circleBroadPhaseTest)){
+						collsion = (Vector::length((*outerIt)->getPos()-(*innerIt)->getPos())  < ((*outerIt)->getSize()+(*innerIt)->getSize()));
+							
 					}
-					bool collide=Collider::CheckForCollisionSAT(*outerIt,*innerIt);
-					if(collide){
+					
+					if(SATCollision)//we are doing SAT
+						// perform SAT if there has been a collision with the broadphase (or if no broad phase, collision will default to true)
+						if(collsion){//circle test is broadphase
+							collsion=Collider::CheckForCollisionSAT(*outerIt,*innerIt);
+					}
+					
+					if(collsion){
 						Collider::Bounce(*outerIt,*innerIt);
 					}
 				}
@@ -285,14 +362,14 @@ int main()
 ////////////////////////////////////////////////////////////
     // Create the main window
     //sf::RenderWindow window(sf::VideoMode::getFullscreenModes()[0], "SFML Window", sf::Style::Fullscreen);
-    sf::RectangleShape viewport(sf::Vector2f(800,600));
-	sf::RenderWindow window(sf::VideoMode(viewport.getSize().x,viewport.getSize().y,32), "SFML Window");
+    sf::IntRect viewport(0,0,800,600);
+	sf::RenderWindow window(sf::VideoMode(viewport.width,viewport.height,32), "SFML Window");
 	
 	
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	//gluPerspective(90.f, 1.f, 1.f, 300.0f);
-	glOrtho(0,viewport.getSize().x,0,viewport.getSize().y,0,1);
+	glOrtho(0,viewport.width,0,viewport.height,0,1);
 
 
 
@@ -309,15 +386,15 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
 
-	const int NUM_TRIS=500;
+	const int NUM_TRIS=100;
 	std::vector<Triangle*> tris;
 	const int MAX_VEL=10;
 	for(int i=0;i<NUM_TRIS;i++){
 		Triangle* tri=new Triangle();
-		tri->setPos(sf::Vector2f(rand()%400+200,rand()%300+150));
+		tri->setPos(sf::Vector2f(rand()%viewport.width,rand()%viewport.height));
 		tri->setVel(sf::Vector2f(rand()%MAX_VEL-MAX_VEL/2,rand()%MAX_VEL-MAX_VEL/2));
 		tri->setAngVel(rand()%20-10);
-		tri->setSize(rand()%15+2);
+		tri->setSize(rand()%25+2);
 		tri->setColour(sf::Vector3f( (double)rand()/ RAND_MAX, (double)rand() / RAND_MAX, (double)rand() / RAND_MAX ));
 		tris.push_back(tri);
 	}
@@ -325,11 +402,23 @@ int main()
 
 	bool broadPhase=false;
 	bool collisions=false;
-	bool octtree=false;
+	bool SATcollisions=false;
+
+	bool quadtree=false;
 
 	FPS fps;
+
+	sf::Font font;
+ 
+	 // Load it from a file
+	 if (!font.loadFromFile("../sansation.ttf"))
+	 {
+		 std::cout << "Error loading font\n" ;
+	 }
+	int dpCount=0;
 	while (window.isOpen())
     {
+		Vector::dp_count=0;
         // Process events
         sf::Event Event;
         while (window.pollEvent(Event))
@@ -347,20 +436,24 @@ int main()
 				glViewport(0, 0, Event.size.width, Event.size.height);
 				glMatrixMode(GL_PROJECTION);
 				glLoadIdentity();
-				viewport=sf::RectangleShape(sf::Vector2f((float)Event.size.width,(float)Event.size.height));
-				glOrtho(0,viewport.getSize().x,0,viewport.getSize().y,0,1);
+				viewport.width=Event.size.width;
+				viewport.height=Event.size.height;
+				glOrtho(0,viewport.width,0,viewport.height,0,1);
 
 			}
 
 			 // 
-            if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::Space))
+            if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::B))
                 broadPhase=!broadPhase;
             
 			if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::C))
                 collisions=!collisions;
 
-			if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::O))
-                octtree=!octtree;
+			if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::Q))
+                quadtree=!quadtree;
+
+			if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::S))
+                SATcollisions=!SATcollisions;
 
 		}
 
@@ -377,11 +470,11 @@ int main()
 			
 			(*triIt)->Draw();
 
-			Collider::CheckPointsOutsideWindow(*triIt,0,viewport.getSize().x,0,viewport.getSize().y);
+			Collider::CheckPointsOutsideWindow(*triIt,0,viewport.width,0,viewport.height);
 
-			int midx=viewport.getSize().x/2;
-			int midy=viewport.getSize().y/2;
-			if(octtree){ //subdivide all tris into quads
+			int midx=viewport.width/2;
+			int midy=viewport.height/2;
+			if(quadtree){ //subdivide all tris into quads
 				int x=(*triIt)->getPos().x;
 				int y=(*triIt)->getPos().y;
 
@@ -401,24 +494,71 @@ int main()
 
 
 		if(collisions){
-			if(octtree){
-				Collider::CollideAllInVector(a,broadPhase);
-				Collider::CollideAllInVector(b,broadPhase);
-				Collider::CollideAllInVector(c,broadPhase);
-				Collider::CollideAllInVector(d,broadPhase);
+			if(quadtree){
+				Collider::CollideAllInVector(a,SATcollisions,broadPhase);
+				Collider::CollideAllInVector(b,SATcollisions,broadPhase);
+				Collider::CollideAllInVector(c,SATcollisions,broadPhase);
+				Collider::CollideAllInVector(d,SATcollisions,broadPhase);
 			}
 			else{
-				Collider::CollideAllInVector(tris,broadPhase);
+				Collider::CollideAllInVector(tris,SATcollisions,broadPhase);
 			}
 
 		}
-
+		window.pushGLStates();
         // Finally, display rendered frame on screen
 	   fps.update();
 	   std::ostringstream ss;
 	   ss << fps.getFPS();
 		
 	   window.setTitle(ss.str());
+
+	   	sf::Text atext;
+		atext.setFont(font);
+		atext.setCharacterSize(20);
+		atext.setStyle(sf::Text::Bold);
+		atext.setColor(sf::Color::White);
+		int textPos=0;
+		
+		sf::String on="[on]";
+		sf::String off="[off]";
+
+		atext.setString(sf::String("press 'C' to enable Collision Detection ")+=collisions?on:off);
+		window.draw(atext);
+		
+
+		atext.setString(sf::String("press 'S' to enable SAT ")+=SATcollisions?on:off);
+		atext.setPosition(0,textPos+=22);
+		window.draw(atext);
+
+		
+
+		atext.setString(sf::String("press 'Q' to enable Quadtree ")+=quadtree?on:off);
+		atext.setPosition(0,textPos+=22);
+		window.draw(atext);
+
+
+
+		atext.setString(sf::String("press 'B' to enable Circular BroadPhase: ")+=broadPhase?on:off);
+		atext.setPosition(0,textPos+=22);
+		window.draw(atext);
+
+		atext.setString(sf::String("Current NarrowPhase CD Method: ")+=collisions?(SATcollisions?"SAT":"Circular"):"none");
+		atext.setPosition(0,textPos+=22);
+		window.draw(atext);
+
+		std::ostringstream ssd;
+		if(Clock.getElapsedTime().asSeconds() >= 1.f){
+			dpCount=Vector::dp_count;
+			Clock.restart();
+		}
+		ssd<<dpCount;
+		atext.setString(sf::String("Number of DotProducts: ")+ssd.str());
+		atext.setPosition(0,textPos+=22);
+		window.draw(atext);
+
+		window.popGLStates();
+
        window.display();
     }
 
