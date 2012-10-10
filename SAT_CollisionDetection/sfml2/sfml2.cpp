@@ -22,6 +22,8 @@
 #include "SFML/Graphics.hpp"
 #include "SFML/OpenGL.hpp"
 #include <iostream>
+#include <sstream>
+
 
 enum Edges{leftEdge,rightEdge,topEdge, bottomEdge};
 
@@ -34,6 +36,8 @@ public:
 	static float length(sf::Vector2f a){
 		return sqrt(a.x*a.x+a.y*a.y);
 	}
+
+
 
 	static sf::Vector2f getNormal(sf::Vector2f a,sf::Vector2f b){
 		sf::Vector2f n;
@@ -88,7 +92,7 @@ class Triangle{
 
 
 	void Draw(){
-		glBegin(GL_POINTS);
+		glBegin(GL_TRIANGLES);
 		glColor3f(col.x,col.y,col.z);
 		for(int i=0;i<3;i++)
 			glVertex2f(pos.x+verts[i].x,pos.y+verts[i].y);
@@ -142,27 +146,27 @@ class Triangle{
 
 class Collider{
 public:
-	static void CheckPointsOutsideWindow(Triangle& tri,int left,int right, int bottom, int top){
+	static void CheckPointsOutsideWindow(Triangle* tri,int left,int right, int bottom, int top){
 		sf::Vector2f verts[3];
-		tri.GetVerts(verts);
+		tri->GetVerts(verts);
 		for(int i=0;i<3;i++){
-			if(verts[i].x<left)		tri.CollideWithEdge(leftEdge);
-			if(verts[i].x>right)	tri.CollideWithEdge(rightEdge);
-			if(verts[i].y<bottom)	tri.CollideWithEdge(bottomEdge);
-			if(verts[i].y>top)		tri.CollideWithEdge(topEdge);
+			if(verts[i].x<left)		tri->CollideWithEdge(leftEdge);
+			if(verts[i].x>right)	tri->CollideWithEdge(rightEdge);
+			if(verts[i].y<bottom)	tri->CollideWithEdge(bottomEdge);
+			if(verts[i].y>top)		tri->CollideWithEdge(topEdge);
 		}
 	}
 
-	static bool CheckForCollisionSAT(Triangle& t1,Triangle& t2){
+	static bool CheckForCollisionSAT(Triangle* t1,Triangle* t2){
 		sf::Vector2f verts1[3];
 		sf::Vector2f verts2[3];
-		t1.GetVerts(verts1);
-		t2.GetVerts(verts2);	
+		t1->GetVerts(verts1);
+		t2->GetVerts(verts2);	
 
 		sf::Vector2f normals1[3];
 		sf::Vector2f normals2[3];
-		t1.GetNormals(normals1);
-		t2.GetNormals(normals2);
+		t1->GetNormals(normals1);
+		t2->GetNormals(normals2);
 
 		
 
@@ -174,25 +178,13 @@ public:
 			if (sep) return false;//no collision
 		}
 
-		//debug code
-		//if(Vector::length(t1.getPos()-t2.getPos())>t1.getSize()+t2.getSize()){
-		//	for(int i=0;i<3;i++){
-		//	bool sep;
-		//	sep=Separated(normals1[i],verts1,verts2);
-		//	if (sep) return false;//no collision
-		//	sep=Separated(normals2[i],verts1,verts2);
-		//	if (sep) return false;//no collision
-		//}
-
-		//}
-
 		return true;
 
 	}
 
-	static void Bounce(Triangle& t1,Triangle& t2){
-		sf::Vector2f displacement=t1.getPos()-t2.getPos();
-		sf::Vector2f closing=t1.getVel()-t2.getVel();
+	static void Bounce(Triangle* t1,Triangle* t2){
+		sf::Vector2f displacement=t1->getPos()-t2->getPos();
+		sf::Vector2f closing=t1->getVel()-t2->getVel();
 
 		
 		
@@ -202,11 +194,11 @@ public:
 		displacement/=Vector::length(displacement); //normalise
 
 		sf::Vector2f b;
-		b=Vector::dot(t1.getVel(),displacement)*displacement;
-		b=t1.getVel()-b*2.f;
-		t1.setVel(b);
-		b=Vector::dot(t2.getVel(),displacement)*displacement;
-		t2.setVel(t2.getVel()-b*2.f);
+		b=Vector::dot(t1->getVel(),displacement)*displacement;
+		b=t1->getVel()-b*2.f;
+		t1->setVel(b);
+		b=Vector::dot(t2->getVel(),displacement)*displacement;
+		t2->setVel(t2->getVel()-b*2.f);
 
 	}
 
@@ -227,16 +219,63 @@ public:
 			}
 		
 
-		if(max1<min2 || max2 <min1)
+		if(max1<min2 || max2 <min1) //check for overlap
 			return true;
 
-
-		//if(max1<min2)
-		//	return true;
 		return false;
+	}
+	static void CollideAllInVector(std::vector<Triangle*>& tris, bool circleCollision){
+			std::vector<Triangle*>::iterator outerIt;	
+			std::vector<Triangle*>::iterator innerIt;	
+			for(outerIt=tris.begin();outerIt!=tris.end();outerIt++){ 
+				for(innerIt=outerIt+1;innerIt!=tris.end();innerIt++){
+					//circle Collision
+					if(circleCollision){
+						if(Vector::length((*outerIt)->getPos()-(*innerIt)->getPos())>(*outerIt)->getSize()+(*innerIt)->getSize())
+							continue;
+					}
+					bool collide=Collider::CheckForCollisionSAT(*outerIt,*innerIt);
+					if(collide){
+						Collider::Bounce(*outerIt,*innerIt);
+					}
+				}
+			}
 	}
 };
 
+class FPS
+{ 
+public:
+	/// @brief Constructor with initialization.
+	///
+	FPS() : mFrame(0), mFps(0) {}
+
+	/// @brief Update the frame count.
+	/// 
+
+
+	/// @brief Get the current FPS count.
+	/// @return FPS count.
+	const unsigned int getFPS() const { return mFps; }
+
+private:
+	unsigned int mFrame;
+	unsigned int mFps;
+	sf::Clock mClock;
+
+public:
+	void update()
+	{
+		if(mClock.getElapsedTime().asSeconds() >= 1.f)
+		{
+			mFps = mFrame;
+			mFrame = 0;
+			mClock.restart();
+		}
+ 
+		++mFrame;
+	}
+};
 
 int main()
 {
@@ -246,18 +285,20 @@ int main()
 ////////////////////////////////////////////////////////////
     // Create the main window
     //sf::RenderWindow window(sf::VideoMode::getFullscreenModes()[0], "SFML Window", sf::Style::Fullscreen);
-    sf::RenderWindow window(sf::VideoMode(800,600,32), "SFML Window");
+    sf::RectangleShape viewport(sf::Vector2f(800,600));
+	sf::RenderWindow window(sf::VideoMode(viewport.getSize().x,viewport.getSize().y,32), "SFML Window");
+	
 	
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	//gluPerspective(90.f, 1.f, 1.f, 300.0f);
-	glOrtho(0,800,0,600,0,1);
+	glOrtho(0,viewport.getSize().x,0,viewport.getSize().y,0,1);
 
 
 
     // Create a clock for measuring time elapsed
     sf::Clock Clock;
-	window.setFramerateLimit(60);	
+	//window.setFramerateLimit(60);	
 
 
     //// Set color and depth clear value
@@ -269,19 +310,24 @@ int main()
     glDepthMask(GL_TRUE);
 
 	const int NUM_TRIS=500;
-	Triangle tri[NUM_TRIS];
+	std::vector<Triangle*> tris;
 	const int MAX_VEL=10;
 	for(int i=0;i<NUM_TRIS;i++){
-		tri[i].setPos(sf::Vector2f(rand()%400+200,rand()%300+150));
-		tri[i].setVel(sf::Vector2f(rand()%MAX_VEL-MAX_VEL/2,rand()%MAX_VEL-MAX_VEL/2));
-		tri[i].setAngVel(rand()%20-10);
-		tri[i].setSize(rand()%20+5);
-		tri[i].setColour(sf::Vector3f( (double)rand()/ RAND_MAX, (double)rand() / RAND_MAX, (double)rand() / RAND_MAX ));
+		Triangle* tri=new Triangle();
+		tri->setPos(sf::Vector2f(rand()%400+200,rand()%300+150));
+		tri->setVel(sf::Vector2f(rand()%MAX_VEL-MAX_VEL/2,rand()%MAX_VEL-MAX_VEL/2));
+		tri->setAngVel(rand()%20-10);
+		tri->setSize(rand()%15+2);
+		tri->setColour(sf::Vector3f( (double)rand()/ RAND_MAX, (double)rand() / RAND_MAX, (double)rand() / RAND_MAX ));
+		tris.push_back(tri);
 	}
 
 
+	bool broadPhase=false;
+	bool collisions=false;
+	bool octtree=false;
 
-
+	FPS fps;
 	while (window.isOpen())
     {
         // Process events
@@ -301,36 +347,83 @@ int main()
 				glViewport(0, 0, Event.size.width, Event.size.height);
 				glMatrixMode(GL_PROJECTION);
 				glLoadIdentity();
-				glOrtho(0,Event.size.width,0,Event.size.height,0,1);
+				viewport=sf::RectangleShape(sf::Vector2f((float)Event.size.width,(float)Event.size.height));
+				glOrtho(0,viewport.getSize().x,0,viewport.getSize().y,0,1);
 
 			}
- 
+
+			 // 
+            if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::Space))
+                broadPhase=!broadPhase;
+            
+			if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::C))
+                collisions=!collisions;
+
+			if ((Event.type == sf::Event::KeyPressed) && (Event.key.code == sf::Keyboard::O))
+                octtree=!octtree;
+
 		}
 
 
-       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	   for(int i=0;i<NUM_TRIS;i++){
-			tri[i].Update();
+
+		typedef std::vector<Triangle*> Vec;
+		Vec a,b,c,d;
+
+       
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		std::vector<Triangle*>::iterator triIt;
+		for(triIt=tris.begin();triIt!=tris.end();triIt++){
+			(*triIt)->Update();
 			
-			tri[i].Draw();
+			(*triIt)->Draw();
 
-			Collider::CheckPointsOutsideWindow(tri[i],0,800,0,600);
+			Collider::CheckPointsOutsideWindow(*triIt,0,viewport.getSize().x,0,viewport.getSize().y);
 
-			for(int j=i;j<NUM_TRIS;j++){
-				if(Vector::length(tri[i].getPos()-tri[j].getPos())>tri[i].getSize()+tri[j].getSize())
-					continue;
-				bool collide=Collider::CheckForCollisionSAT(tri[i],tri[j]);
-				if(collide){
-					Collider::Bounce(tri[i],tri[j]);
+			int midx=viewport.getSize().x/2;
+			int midy=viewport.getSize().y/2;
+			if(octtree){ //subdivide all tris into quads
+				int x=(*triIt)->getPos().x;
+				int y=(*triIt)->getPos().y;
+
+				if(x<midx){
+					if(y<midy) a.push_back(*triIt);
+				
+					else c.push_back(*triIt);
+				}
+				else{
+					if(y<midy) b.push_back(*triIt);
+				
+					else d.push_back(*triIt);
 				}
 			}
+
 	   }
 
+
+		if(collisions){
+			if(octtree){
+				Collider::CollideAllInVector(a,broadPhase);
+				Collider::CollideAllInVector(b,broadPhase);
+				Collider::CollideAllInVector(c,broadPhase);
+				Collider::CollideAllInVector(d,broadPhase);
+			}
+			else{
+				Collider::CollideAllInVector(tris,broadPhase);
+			}
+
+		}
+
         // Finally, display rendered frame on screen
-        window.display();
+	   fps.update();
+	   std::ostringstream ss;
+	   ss << fps.getFPS();
+		
+	   window.setTitle(ss.str());
+       window.display();
     }
 
     return EXIT_SUCCESS;
 }
+
 
 
