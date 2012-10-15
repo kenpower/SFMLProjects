@@ -63,7 +63,6 @@ class Triangle{
 
 	float angVel;
 	float size;
-
 	
 	void initVerts(){
 		verts[0]=sf::Vector2f(0,size);
