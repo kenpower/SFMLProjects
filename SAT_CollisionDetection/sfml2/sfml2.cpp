@@ -149,11 +149,12 @@ class Triangle{
 };
 
 class QuadNode{
+public:
 	QuadNode* nodes;
 	std::vector<Triangle*>* tris;
 	
-public:
-	QuadNode():tris(0){}
+
+	QuadNode():tris(0),nodes(0){}
 
 	~QuadNode(){
 		delete tris;
@@ -201,11 +202,13 @@ public:
 			sf::IntRect rd(rect.left+w2,rect.top+h2,w2,h2);
 
 			nodes[0].AddToNodes(a,ra,level);
-			nodes[1].AddToNodes(a,rb,level);
-			nodes[2].AddToNodes(a,rc,level);
-			nodes[3].AddToNodes(a,rd,level);
+			nodes[1].AddToNodes(b,rb,level);
+			nodes[2].AddToNodes(c,rc,level);
+			nodes[3].AddToNodes(d,rd,level);
 			
 	}
+
+	
 };
 
 
@@ -224,7 +227,10 @@ public:
 		}
 	}
 
+	static int SATcount;
+
 	static bool CheckForCollisionSAT(Triangle* t1,Triangle* t2){
+		SATcount++;
 		sf::Vector2f verts1[3];
 		sf::Vector2f verts2[3];
 		t1->GetVerts(verts1);
@@ -291,11 +297,11 @@ public:
 
 		return false;
 	}
-	static void CollideAllInVector(std::vector<Triangle*>& tris, bool SATCollision, bool circleBroadPhaseTest){
+	static void CollideAllInVector(std::vector<Triangle*>* tris, bool SATCollision, bool circleBroadPhaseTest){
 			std::vector<Triangle*>::iterator outerIt;	
 			std::vector<Triangle*>::iterator innerIt;	
-			for(outerIt=tris.begin();outerIt!=tris.end();outerIt++){ 
-				for(innerIt=outerIt+1;innerIt!=tris.end();innerIt++){
+			for(outerIt=tris->begin();outerIt!=tris->end();outerIt++){ 
+				for(innerIt=outerIt+1;innerIt!=tris->end();innerIt++){
 					bool collsion =true;
 					
 					
@@ -318,7 +324,20 @@ public:
 				}
 			}
 	}
+
+	static void CollideAllInTree(QuadNode& root,bool SATcollisions,bool broadPhase){
+		if(root.tris){
+			Collider::CollideAllInVector(root.tris,SATcollisions,broadPhase);
+		}
+		else{
+			for(int i=0;i<4;i++){
+				Collider::CollideAllInTree(root.nodes[i],SATcollisions,broadPhase);
+			}
+		}
+	}
 };
+ int Collider::SATcount=0;
+
 
 class FPS
 { 
@@ -406,6 +425,8 @@ int main()
 
 	bool quadtree=false;
 
+	QuadNode* root;
+
 	FPS fps;
 
 	sf::Font font;
@@ -416,9 +437,11 @@ int main()
 		 std::cout << "Error loading font\n" ;
 	 }
 	int dpCount=0;
+	int satCount=0;
 	while (window.isOpen())
     {
 		Vector::dp_count=0;
+		Collider::SATcount=0;
         // Process events
         sf::Event Event;
         while (window.pollEvent(Event))
@@ -459,8 +482,8 @@ int main()
 
 
 
-		typedef std::vector<Triangle*> Vec;
-		Vec a,b,c,d;
+		//typedef std::vector<Triangle*> Vec;
+		//Vec a,b,c,d;
 
        
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -472,10 +495,10 @@ int main()
 
 			Collider::CheckPointsOutsideWindow(*triIt,0,viewport.width,0,viewport.height);
 
-			int midx=viewport.width/2;
-			int midy=viewport.height/2;
-			if(quadtree){ //subdivide all tris into quads
-				int x=(*triIt)->getPos().x;
+			//int midx=viewport.width/2;
+			//int midy=viewport.height/2;
+			
+				/*int x=(*triIt)->getPos().x;
 				int y=(*triIt)->getPos().y;
 
 				if(x<midx){
@@ -487,24 +510,28 @@ int main()
 					if(y<midy) b.push_back(*triIt);
 				
 					else d.push_back(*triIt);
-				}
-			}
+				}*/
+			//}
 
 	   }
 
+		if(quadtree){ //subdivide all tris into quads
+				root=new QuadNode;
+				root->AddToNodes(tris,viewport,3);
+		}
 
 		if(collisions){
 			if(quadtree){
-				Collider::CollideAllInVector(a,SATcollisions,broadPhase);
-				Collider::CollideAllInVector(b,SATcollisions,broadPhase);
-				Collider::CollideAllInVector(c,SATcollisions,broadPhase);
-				Collider::CollideAllInVector(d,SATcollisions,broadPhase);
+				Collider::CollideAllInTree(*root,SATcollisions,broadPhase);
+				delete root;
 			}
 			else{
-				Collider::CollideAllInVector(tris,SATcollisions,broadPhase);
+				Collider::CollideAllInVector(&tris,SATcollisions,broadPhase);
 			}
 
 		}
+
+	
 		window.pushGLStates();
         // Finally, display rendered frame on screen
 	   fps.update();
@@ -547,13 +574,24 @@ int main()
 		atext.setPosition(0,textPos+=22);
 		window.draw(atext);
 
+		
+		
 		std::ostringstream ssd;
 		if(Clock.getElapsedTime().asSeconds() >= 1.f){
 			dpCount=Vector::dp_count;
+			satCount=Collider::SATcount;
 			Clock.restart();
 		}
 		ssd<<dpCount;
 		atext.setString(sf::String("Number of DotProducts: ")+ssd.str());
+		atext.setPosition(0,textPos+=22);
+		window.draw(atext);
+
+		
+		std::ostringstream sssat;
+	
+		sssat<<satCount;
+		atext.setString(sf::String("Number of SAT tests: ")+sssat.str());
 		atext.setPosition(0,textPos+=22);
 		window.draw(atext);
 
