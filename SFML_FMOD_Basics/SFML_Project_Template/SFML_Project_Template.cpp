@@ -66,7 +66,9 @@ int main()
 	
 	// create and load a "sound",
 	FMOD::Sound *sound;
+	FMOD::Sound *sound2;
 	result = FMODsys->createSound("../Sleep Away.mp3", FMOD_LOOP_NORMAL|FMOD_3D, 0, &sound);		
+	result = FMODsys->createSound("../Sleep Away.mp3", FMOD_LOOP_NORMAL|FMOD_3D, 0, &sound2);		
 	// FMOD_DEFAULT uses the defaults.  These are the same as FMOD_LOOP_OFF | FMOD_2D | FMOD_HARDWARE.
 	
 	FMOD::Channel *channel=0;
