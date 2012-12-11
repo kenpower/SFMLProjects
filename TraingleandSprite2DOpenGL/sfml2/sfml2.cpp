@@ -105,6 +105,11 @@ int main()
         // Clear color and depth buffer
        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	   glMatrixMode(GL_MODELVIEW);
+	   glLoadIdentity();
+	  
+
+	   
 
 		glBegin(GL_TRIANGLES);//draw a triangle
 			glColor3d(0,1,1);
